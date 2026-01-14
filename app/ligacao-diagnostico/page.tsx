@@ -116,25 +116,50 @@ export default function LigacaoDiagnostico() {
       // Second double buzz after short pause
       createBuzz(t + 1.2, 0.2)
       createBuzz(t + 1.5, 0.2)
+
+      // Trigger vibration with sound for better compatibility
+      triggerVibration()
     }
 
-    playVibrationSound()
-    // iOS repeats the pattern every ~3 seconds
-    const interval = setInterval(playVibrationSound, 3000)
+    const triggerVibration = () => {
+      try {
+        // Standard Vibration API
+        if ("vibrate" in navigator && typeof navigator.vibrate === "function") {
+          navigator.vibrate([200, 100, 200, 700, 200, 100, 200, 1500])
+        }
 
-    const vibratePattern = () => {
-      if ("vibrate" in navigator) {
-        // iOS pattern: 200ms buzz, 100ms pause, 200ms buzz, 700ms pause, repeat
-        navigator.vibrate([200, 100, 200, 700, 200, 100, 200, 1500])
+        // Haptic Feedback API for iOS (experimental)
+        if ('vibrate' in navigator || (window as any).webkit?.messageHandlers?.vibrate) {
+          try {
+            (window as any).webkit?.messageHandlers?.vibrate?.postMessage?.({
+              duration: 200,
+              pattern: [200, 100, 200, 700, 200, 100, 200, 1500]
+            })
+          } catch (e) {
+            // Fallback silently
+          }
+        }
+      } catch (error) {
+        // Vibration not supported
+        console.log('Vibration not supported')
       }
     }
-    vibratePattern()
-    const vibrateInterval = setInterval(vibratePattern, 3000)
+
+    // Initial vibration
+    triggerVibration()
+
+    // Start sound
+    playVibrationSound()
+
+    // Repeat pattern every 3 seconds
+    const interval = setInterval(() => {
+      playVibrationSound()
+      triggerVibration()
+    }, 3000)
 
     return () => {
       isPlaying = false
       clearInterval(interval)
-      clearInterval(vibrateInterval)
       if (audioContextRef.current && audioContextRef.current.state !== "closed") {
         audioContextRef.current.close().catch(() => {
           // Ignore errors if already closed
@@ -142,7 +167,11 @@ export default function LigacaoDiagnostico() {
         audioContextRef.current = null
       }
       if ("vibrate" in navigator) {
-        navigator.vibrate(0)
+        try {
+          navigator.vibrate(0)
+        } catch (e) {
+          // Ignore
+        }
       }
     }
   }, [callState, audioEnabled])
@@ -232,7 +261,17 @@ export default function LigacaoDiagnostico() {
           </div>
 
           <button
-            onClick={() => setAudioEnabled(true)}
+            onClick={() => {
+              // Trigger vibration immediately on user interaction
+              try {
+                if ("vibrate" in navigator && typeof navigator.vibrate === "function") {
+                  navigator.vibrate(200)
+                }
+              } catch (e) {
+                // Ignore if not supported
+              }
+              setAudioEnabled(true)
+            }}
             className="px-8 py-4 bg-[#34C759] text-white text-xl font-semibold rounded-full active:bg-[#2db84e] transition-colors"
           >
             Começar
