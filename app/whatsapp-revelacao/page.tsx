@@ -358,10 +358,11 @@ export default function LineChatRevelacao() {
 
         <div
           ref={chatRef}
-          className={`flex-1 px-3 md:px-4 py-3 md:py-4 space-y-2 md:space-y-3 relative ${showButton ? 'pointer-events-none overflow-hidden' : 'overflow-hidden'}`}
+          className={`flex-1 px-3 md:px-4 py-3 md:py-4 space-y-2 md:space-y-3 relative overflow-y-auto overflow-x-hidden ${showButton ? 'pointer-events-none' : ''}`}
           style={{
             scrollBehavior: 'smooth',
             overscrollBehavior: 'none',
+            WebkitOverflowScrolling: 'touch',
             maxHeight: 'calc(100vh - 81px)',
             backgroundColor: '#F5F5F5'
           }}
