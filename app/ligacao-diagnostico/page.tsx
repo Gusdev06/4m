@@ -10,7 +10,7 @@ export default function LigacaoDiagnostico() {
   const [callDuration, setCallDuration] = useState(0)
   const [isMounted, setIsMounted] = useState(false)
   const [currentTime, setCurrentTime] = useState("")
-  const [audioEnabled, setAudioEnabled] = useState(false)
+  const [audioEnabled, setAudioEnabled] = useState(true)
   const audioContextRef = useRef<AudioContext | null>(null)
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
 
