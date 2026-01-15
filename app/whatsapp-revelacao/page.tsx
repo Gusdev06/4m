@@ -16,9 +16,8 @@ interface Message {
 }
 
 const conversationScript: Omit<Message, "id" | "timestamp">[] = [
-  { text: "hey", sender: "sarah", type: "text" },
   { text: "it's about what I told you on the call", sender: "sarah", type: "text" },
-  { text: "this couldn't fit in just text…", sender: "sarah", type: "text" },
+  { text: "this couldn't fit in just text...", sender: "sarah", type: "text" },
   { text: "I'll send you a quick audio", sender: "sarah", type: "text" },
   { text: "but first, save this access code:", sender: "sarah", type: "text" },
   { text: "9383", sender: "sarah", type: "text", isCode: true },
@@ -72,6 +71,7 @@ export default function LineChatRevelacao() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const shouldContinueRef = useRef(true)
   const isProcessingRef = useRef(false)
+  const hasStartedRef = useRef(false)
 
   useEffect(() => {
     const updateTime = () => {
@@ -89,10 +89,37 @@ export default function LineChatRevelacao() {
   }, [])
 
   useEffect(() => {
+    // Reset all state when component mounts
+    messageIndexRef.current = 0
+    shouldContinueRef.current = true
+    isProcessingRef.current = false
+    hasStartedRef.current = false
+    setMessages([])
+    setIsTyping(false)
+    setShowButton(false)
+    setPlayingAudioId(null)
+    setIsAudioPaused(false)
+    setAudioProgress({})
+    setAudioDurations({})
+    setWaitingForAudio(false)
+    setShowUnlockPopup(false)
+    setUnlockCode("")
+    setPendingAudioId(null)
+    setPendingAudioSrc(null)
+    setIsUnlocked(false)
+    setShowError(false)
+
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ""
+      audioRef.current = null
+    }
+
     const timer = setTimeout(() => setIsMounted(true), 100)
     return () => {
       clearTimeout(timer)
       shouldContinueRef.current = false
+      hasStartedRef.current = false
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.src = ""
@@ -153,11 +180,23 @@ export default function LineChatRevelacao() {
 
   useEffect(() => {
     if (!isMounted) return
+    if (hasStartedRef.current) return
 
-    const initialDelay = setTimeout(continueMessages, 1000)
+    // Ensure refs are properly initialized
+    shouldContinueRef.current = true
+    isProcessingRef.current = false
+
+    // Mark as started to prevent multiple initializations
+    hasStartedRef.current = true
+
+    const initialDelay = setTimeout(() => {
+      if (shouldContinueRef.current && !isProcessingRef.current) {
+        continueMessages()
+      }
+    }, 1000)
+
     return () => {
       clearTimeout(initialDelay)
-      shouldContinueRef.current = false
     }
   }, [isMounted])
 
@@ -219,9 +258,9 @@ export default function LineChatRevelacao() {
     // Stop current audio if playing
     if (audioRef.current) {
       audioRef.current.pause()
-      audioRef.current.removeEventListener("ended", () => {})
-      audioRef.current.removeEventListener("timeupdate", () => {})
-      audioRef.current.removeEventListener("loadedmetadata", () => {})
+      audioRef.current.removeEventListener("ended", () => { })
+      audioRef.current.removeEventListener("timeupdate", () => { })
+      audioRef.current.removeEventListener("loadedmetadata", () => { })
       audioRef.current.src = ""
       audioRef.current = null
     }
@@ -310,12 +349,12 @@ export default function LineChatRevelacao() {
       className={`h-screen w-screen overflow-x-hidden bg-white transition-opacity duration-300 ${isMounted && !isTransitioning ? "opacity-100" : "opacity-0"
         }`}
       style={{
-        fontFamily: '-apple-system, "Helvetica Neue", "Hiragino Sans", sans-serif',
+        fontFamily: '-apple-system, "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif',
       }}
     >
-      <div className="w-full max-w-[375px] md:max-w-[414px] lg:max-w-[768px] mx-auto h-full flex flex-col">
-        <header className="w-full bg-[#07b53b] sticky top-0 z-10">
-          <div className="h-11 flex items-center justify-between px-6 text-white text-sm font-medium">
+      <div className="w-full mx-auto h-full flex flex-col">
+        <header className="w-full bg-[#00C300] sticky top-0 z-10">
+          <div className="h-11 flex items-center justify-between px-6 text-white font-medium" style={{ fontSize: "14px", lineHeight: "1.5" }}>
             <span>{currentTime}</span>
             <div className="flex items-center gap-1">
               <div className="flex gap-[2px]">
@@ -335,13 +374,13 @@ export default function LineChatRevelacao() {
               <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </button>
 
-            <div className="w-9 h-9 md:w-11 md:h-11 rounded-full overflow-hidden bg-white/20 border-2 border-white/30">
+            <div className="w-10 h-10 md:w-11 md:h-11 rounded-full overflow-hidden bg-white/20 border-2 border-white/30">
               <img src="/images/mulher.jpeg" alt="Sarah" className="w-full h-full object-cover" />
             </div>
 
             <div className="flex-1 ml-1">
-              <h1 className="text-white font-bold text-sm md:text-base lg:text-[17px]">Sarah</h1>
-              <p className="text-white/80 text-xs">{isTyping ? "typing..." : "Online"}</p>
+              <h1 className="text-white font-bold" style={{ fontSize: "16px", lineHeight: "1.5" }}>Sarah</h1>
+              <p className="text-white/80" style={{ fontSize: "14px", lineHeight: "1.5" }}>{isTyping ? "typing..." : "Online"}</p>
             </div>
 
             <button className="p-1 md:p-2" aria-label="Voice call">
@@ -364,23 +403,24 @@ export default function LineChatRevelacao() {
             overscrollBehavior: 'none',
             WebkitOverflowScrolling: 'touch',
             maxHeight: 'calc(100vh - 81px)',
-            backgroundColor: '#F5F5F5'
+            backgroundColor: '#F7F7F7'
           }}
         >
           {messages.map((msg) => (
-            <div key={msg.id} className="flex justify-start items-start gap-2">
-              <div className="w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden flex-shrink-0">
+            <div key={msg.id} className="flex justify-start items-start gap-3">
+              <div className="w-10 h-10 md:w-11 md:h-11 rounded-full overflow-hidden flex-shrink-0">
                 <img src="/images/mulher.jpeg" alt="Sarah" className="w-full h-full object-cover" />
               </div>
 
               <div className="flex flex-col">
                 <div
-                  className={`max-w-[80%] md:max-w-[75%] px-3 py-2 md:px-4 md:py-3 ${msg.type === "audio" ? "min-w-[180px] md:min-w-[200px]" : ""}`}
+                  className={`max-w-[80%] md:max-w-[75%] px-4 py-3 md:px-5 md:py-4 ${msg.type === "audio" ? "min-w-[180px] md:min-w-[200px]" : ""}`}
                   style={{
-                    backgroundColor: "#07b53b",
-                    borderRadius: "18px",
+                    backgroundColor: "#00C300",
+                    borderRadius: "15px",
                     color: "white",
                     boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
+                    lineHeight: "1.5",
                   }}
                 >
                   {msg.type === "text" ? (
@@ -390,7 +430,7 @@ export default function LineChatRevelacao() {
                         <p className="text-xs text-white/70">🔐 Access Code</p>
                       </div>
                     ) : (
-                      <p className="text-sm md:text-[15px] text-white leading-[1.5]">{msg.text}</p>
+                      <p className="text-white" style={{ fontSize: "16px", lineHeight: "1.5" }}>{msg.text}</p>
                     )
                   ) : (
                     <div className="flex items-center gap-2 md:gap-3">
@@ -412,20 +452,20 @@ export default function LineChatRevelacao() {
                         className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0"
                       >
                         {playingAudioId === msg.id && !isAudioPaused ? (
-                          <Pause className="w-4 h-4 md:w-5 md:h-5 text-[#07b53b]" />
+                          <Pause className="w-4 h-4 md:w-5 md:h-5 text-[#00C300]" />
                         ) : (
-                          <Play className="w-4 h-4 md:w-5 md:h-5 text-[#07b53b] ml-0.5" />
+                          <Play className="w-4 h-4 md:w-5 md:h-5 text-[#00C300] ml-0.5" />
                         )}
                       </button>
                       <div className="flex-1">
-                        <div className="h-1 md:h-1.5 bg-gray-300 rounded-full overflow-hidden">
+                        <div className="h-1 md:h-1.5 bg-white/30 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-[#07b53b] rounded-full transition-all duration-100"
+                            className="h-full bg-white rounded-full transition-all duration-100"
                             style={{ width: `${audioProgress[msg.id] || 0}%` }}
                           />
                         </div>
                       </div>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
+                      <span className="text-xs text-white/90 flex-shrink-0" style={{ fontSize: "12px", lineHeight: "1.5" }}>
                         {audioDurations[msg.id] || msg.audioDuration || "0:00"}
                       </span>
                     </div>
@@ -433,22 +473,22 @@ export default function LineChatRevelacao() {
                 </div>
 
                 <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] md:text-[11px] text-gray-500">{msg.timestamp}</span>
+                  <span className="text-gray-500" style={{ fontSize: "12px", lineHeight: "1.5" }}>{msg.timestamp}</span>
                 </div>
               </div>
             </div>
           ))}
 
           {isTyping && (
-            <div className="flex justify-start items-start gap-2">
-              <div className="w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden flex-shrink-0">
+            <div className="flex justify-start items-start gap-3">
+              <div className="w-10 h-10 md:w-11 md:h-11 rounded-full overflow-hidden flex-shrink-0">
                 <img src="/images/mulher.jpeg" alt="Sarah" className="w-full h-full object-cover" />
               </div>
               <div
                 className="px-4 py-3 md:px-5 md:py-4"
                 style={{
-                  backgroundColor: "#EDEDED",
-                  borderRadius: "18px",
+                  backgroundColor: "#E5E5E5",
+                  borderRadius: "12px",
                   boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
                 }}
               >
@@ -473,7 +513,8 @@ export default function LineChatRevelacao() {
             <div className="flex justify-center pt-6 pb-2 animate-in fade-in duration-500 relative z-20">
               <button
                 onClick={handleCTA}
-                className="flex items-center gap-2 bg-gradient-to-r from-[#07b53b] to-[#00A550] text-white font-bold py-3 px-6 md:py-4 md:px-8 lg:py-5 lg:px-10 rounded-full shadow-2xl active:scale-95 transition-all duration-200 animate-pulse hover:animate-none hover:shadow-3xl text-sm md:text-base lg:text-lg pointer-events-auto"
+                className="flex items-center gap-2 bg-[#00C300] text-white font-bold py-3 px-6 md:py-4 md:px-8 lg:py-5 lg:px-10 rounded-full shadow-2xl active:scale-95 transition-all duration-200 animate-pulse hover:animate-none hover:shadow-3xl pointer-events-auto"
+                style={{ fontSize: "16px", lineHeight: "1.5", minHeight: "40px" }}
               >
                 <Play className="w-4 h-4 md:w-5 md:h-5 lg:w-6 lg:h-6" />
                 Watch the method presentation
@@ -482,12 +523,12 @@ export default function LineChatRevelacao() {
           )}
         </div>
 
-        <div className="h-12 md:h-14 bg-white border-t flex items-center px-3 md:px-4 gap-2 md:gap-3 flex-shrink-0" style={{ borderColor: '#EDEDED' }}>
-          <button className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#07b53b] flex items-center justify-center flex-shrink-0">
+        <div className="h-12 md:h-14 bg-white border-t flex items-center px-3 md:px-4 gap-2 md:gap-3 flex-shrink-0" style={{ borderColor: '#E5E5E5' }}>
+          <button className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#00C300] flex items-center justify-center flex-shrink-0" style={{ minWidth: "40px", minHeight: "40px" }}>
             <span className="text-white text-base md:text-xl font-bold leading-none">+</span>
           </button>
-          <div className="flex-1 h-8 md:h-9 rounded-full px-3 md:px-4 flex items-center" style={{ backgroundColor: '#F5F5F5' }}>
-            <span className="text-gray-400 text-xs md:text-sm">Message</span>
+          <div className="flex-1 h-8 md:h-9 rounded-full px-3 md:px-4 flex items-center" style={{ backgroundColor: '#F7F7F7' }}>
+            <span className="text-gray-400" style={{ fontSize: "16px", lineHeight: "1.5" }}>Message</span>
           </div>
           <button className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center flex-shrink-0">
             <span className="text-gray-500 text-base md:text-xl">😊</span>
@@ -507,19 +548,19 @@ export default function LineChatRevelacao() {
           <div
             className="w-full max-w-sm bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-300"
             style={{
-              border: "1px solid rgba(7, 181, 59, 0.3)",
-              boxShadow: "0 0 40px rgba(7, 181, 59, 0.2), 0 20px 60px rgba(0, 0, 0, 0.5)",
+              border: "1px solid rgba(0, 195, 0, 0.3)",
+              boxShadow: "0 0 40px rgba(0, 195, 0, 0.2), 0 20px 60px rgba(0, 0, 0, 0.5)",
             }}
           >
             {/* Header */}
             <div className="relative px-6 pt-8 pb-6 text-center">
-              <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#07b53b]/20 to-transparent" />
+              <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#00C300]/20 to-transparent" />
               <div className="relative">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-[#07b53b] to-[#059631] flex items-center justify-center shadow-lg" style={{ boxShadow: "0 0 30px rgba(7, 181, 59, 0.4)" }}>
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[#00C300] flex items-center justify-center shadow-lg" style={{ boxShadow: "0 0 30px rgba(0, 195, 0, 0.4)" }}>
                   <span className="text-4xl">🔒</span>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Encrypted Audio</h2>
-                <p className="text-gray-400 text-sm">Enter the access code to unlock</p>
+                <h2 className="text-2xl font-bold text-white mb-2" style={{ fontSize: "24px", lineHeight: "1.5" }}>Encrypted Audio</h2>
+                <p className="text-gray-400" style={{ fontSize: "16px", lineHeight: "1.5" }}>Enter the access code to unlock</p>
               </div>
             </div>
 
@@ -532,16 +573,19 @@ export default function LineChatRevelacao() {
                   onChange={(e) => setUnlockCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
                   onKeyPress={(e) => e.key === "Enter" && handleUnlockSubmit()}
                   placeholder="• • • •"
-                  className="w-full px-6 py-4 text-center text-2xl font-mono tracking-widest rounded-2xl bg-gray-800/50 border-2 text-white placeholder-gray-600 focus:outline-none focus:border-[#07b53b] transition-all duration-300"
+                  className="w-full px-6 py-4 text-center text-2xl font-mono tracking-widest rounded-2xl bg-gray-800/50 border-2 text-white placeholder-gray-600 focus:outline-none focus:border-[#00C300] transition-all duration-300"
                   style={{
                     borderColor: showError ? "#ef4444" : "rgba(107, 114, 128, 0.3)",
                     boxShadow: showError ? "0 0 20px rgba(239, 68, 68, 0.3)" : "0 4px 12px rgba(0, 0, 0, 0.3)",
+                    fontSize: "24px",
+                    lineHeight: "1.5",
+                    minHeight: "40px",
                   }}
                   maxLength={4}
                   autoFocus
                 />
                 {showError && (
-                  <p className="text-red-400 text-sm text-center mt-3 animate-in slide-in-from-top duration-300">
+                  <p className="text-red-400 text-center mt-3 animate-in slide-in-from-top duration-300" style={{ fontSize: "16px", lineHeight: "1.5" }}>
                     ❌ Invalid code. Try again.
                   </p>
                 )}
@@ -549,10 +593,13 @@ export default function LineChatRevelacao() {
 
               <button
                 onClick={handleUnlockSubmit}
-                className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all duration-300 active:scale-95"
+                className="w-full py-4 rounded-2xl font-bold text-white transition-all duration-300 active:scale-95"
                 style={{
-                  background: "linear-gradient(135deg, #07b53b 0%, #059631 100%)",
-                  boxShadow: "0 8px 24px rgba(7, 181, 59, 0.3)",
+                  background: "#00C300",
+                  boxShadow: "0 8px 24px rgba(0, 195, 0, 0.3)",
+                  fontSize: "16px",
+                  lineHeight: "1.5",
+                  minHeight: "40px",
                 }}
               >
                 🔓 Unlock Audio
@@ -583,7 +630,8 @@ export default function LineChatRevelacao() {
                     setWaitingForAudio(false)
                   }
                 }}
-                className="w-full mt-3 py-3 rounded-2xl font-medium text-gray-400 text-sm transition-all duration-300 hover:text-white hover:bg-gray-800/30"
+                className="w-full mt-3 py-3 rounded-2xl font-medium text-gray-400 transition-all duration-300 hover:text-white hover:bg-gray-800/30"
+                style={{ fontSize: "16px", lineHeight: "1.5", minHeight: "40px" }}
               >
                 Cancel
               </button>

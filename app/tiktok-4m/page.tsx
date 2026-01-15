@@ -82,7 +82,7 @@ export default function TikTok4M() {
         }`}
     >
       {/* Container para simular iPhone em desktop */}
-      <div className="w-full max-w-[375px] md:max-w-[414px] lg:max-w-[768px] mx-auto min-h-screen relative overflow-hidden">
+      <div className="w-full mx-auto min-h-screen relative overflow-hidden">
         <div className="absolute inset-0">
           <video
             ref={videoRef}
