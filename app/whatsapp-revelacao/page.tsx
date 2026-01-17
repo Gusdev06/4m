@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Phone, Video, MoreHorizontal, Play, Pause } from "lucide-react"
+import { ChevronLeft, Phone, Video, MoreHorizontal, Play, Pause, Copy, Clipboard } from "lucide-react"
 
 interface Message {
   id: number
@@ -66,7 +66,11 @@ export default function LineChatRevelacao() {
   const [pendingAudioSrc, setPendingAudioSrc] = useState<string | null>(null)
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [showError, setShowError] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
+  const [pasteError, setPasteError] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
+  const codeInputRef = useRef<HTMLInputElement>(null)
   const messageIndexRef = useRef(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const shouldContinueRef = useRef(true)
@@ -143,10 +147,8 @@ export default function LineChatRevelacao() {
 
     setIsTyping(true)
 
-    // Random delay between 1-2 seconds for message typing
-    const typingDelay = conversationScript[index].type === "audio"
-      ? 1000 + Math.random() * 1000  // 1-2 seconds for audio messages
-      : 1000 + Math.random() * 1000  // 1-2 seconds for text messages
+    // 5 seconds delay for each message
+    const typingDelay = 5000
 
     setTimeout(() => {
       setIsTyping(false)
@@ -234,15 +236,16 @@ export default function LineChatRevelacao() {
     if (!isUnlocked) {
       // Don't open popup if it's already open
       if (showUnlockPopup) {
-        isProcessingRef.current = false
+        // Keep conversation blocked until unlocked
+        isProcessingRef.current = true
         return
       }
 
       setPendingAudioId(messageId)
       setPendingAudioSrc(audioSrc)
       setShowUnlockPopup(true)
-      // Keep isProcessingRef as false so the popup flow can handle continuation
-      isProcessingRef.current = false
+      // Block conversation until audio is unlocked
+      isProcessingRef.current = true
       return
     }
 
@@ -300,6 +303,95 @@ export default function LineChatRevelacao() {
       isProcessingRef.current = false
       setTimeout(continueMessages, 200)
     })
+  }
+
+  const copyCode = async () => {
+    const code = "9383"
+    setCopyError(false)
+
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(code)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+        return
+      } catch (err) {
+        console.error("Clipboard API failed:", err)
+      }
+    }
+
+    // Fallback: use old method
+    try {
+      const textArea = document.createElement("textarea")
+      textArea.value = code
+      textArea.style.position = "fixed"
+      textArea.style.left = "-999999px"
+      textArea.style.top = "-999999px"
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+
+      const successful = document.execCommand("copy")
+      document.body.removeChild(textArea)
+
+      if (successful) {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } else {
+        setCopyError(true)
+        setTimeout(() => setCopyError(false), 3000)
+      }
+    } catch (err) {
+      console.error("Fallback copy failed:", err)
+      setCopyError(true)
+      setTimeout(() => setCopyError(false), 3000)
+    }
+  }
+
+  const pasteCode = async () => {
+    setPasteError(false)
+    setShowError(false)
+
+    if (!codeInputRef.current) return
+
+    // Try to read from clipboard and paste directly
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      try {
+        const text = await navigator.clipboard.readText()
+        const cleaned = text.replace(/\D/g, "").slice(0, 4)
+
+        if (cleaned.length === 4) {
+          // Successfully got code from clipboard
+          setUnlockCode(cleaned)
+          setShowError(false)
+          setPasteError(false)
+
+          // Auto-submit if code is valid
+          if (cleaned === "9383") {
+            setTimeout(() => {
+              handleUnlockSubmit()
+            }, 100)
+          }
+          return
+        } else if (text.trim().length > 0) {
+          // Clipboard has text but not a valid 4-digit code
+          setShowError(true)
+          setTimeout(() => setShowError(false), 3000)
+          return
+        }
+      } catch (err) {
+        // Permission denied or clipboard API failed
+        // Focus input so user can paste manually with Ctrl+V
+        codeInputRef.current.focus()
+        codeInputRef.current.select()
+        return
+      }
+    }
+
+    // Clipboard API not available - focus input for manual paste
+    codeInputRef.current.focus()
+    codeInputRef.current.select()
   }
 
   const handleUnlockSubmit = () => {
@@ -414,7 +506,7 @@ export default function LineChatRevelacao() {
 
               <div className="flex flex-col">
                 <div
-                  className={`max-w-[80%] md:max-w-[75%] px-4 py-3 md:px-5 md:py-4 ${msg.type === "audio" ? "min-w-[180px] md:min-w-[200px]" : ""}`}
+                  className={`max-w-[80%] md:max-w-[75%] px-4 py-3 md:px-5 md:py-4 ${msg.type === "audio" ? "min-w-[180px] md:min-w-[200px]" : ""} ${msg.isCode ? "min-w-[200px] md:min-w-[220px]" : ""}`}
                   style={{
                     backgroundColor: "#00C300",
                     borderRadius: "15px",
@@ -425,9 +517,46 @@ export default function LineChatRevelacao() {
                 >
                   {msg.type === "text" ? (
                     msg.isCode ? (
-                      <div className="flex flex-col items-center gap-1 py-2">
-                        <p className="text-3xl md:text-4xl font-bold font-mono tracking-widest text-white">{msg.text}</p>
-                        <p className="text-xs text-white/70">🔐 Access Code</p>
+                      <div className="flex flex-col items-center gap-2 py-3 px-2">
+                        <div className="flex items-center justify-center gap-2 w-full">
+                          <p
+                            className="text-2xl md:text-3xl font-bold font-mono tracking-widest text-white select-all cursor-pointer flex-shrink-0"
+                            onClick={() => {
+                              const range = document.createRange()
+                              const selection = window.getSelection()
+                              const textNode = document.createTextNode(msg.text)
+                              const tempDiv = document.createElement("div")
+                              tempDiv.appendChild(textNode)
+                              document.body.appendChild(tempDiv)
+                              range.selectNodeContents(tempDiv)
+                              selection?.removeAllRanges()
+                              selection?.addRange(range)
+                              document.execCommand("copy")
+                              document.body.removeChild(tempDiv)
+                              setCopied(true)
+                              setTimeout(() => setCopied(false), 2000)
+                            }}
+                          >
+                            {msg.text}
+                          </p>
+                          <button
+                            onClick={copyCode}
+                            className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors active:scale-95 flex-shrink-0"
+                            aria-label="Copy code"
+                            title="Copy code"
+                          >
+                            {copied ? (
+                              <span className="text-xs text-white">✓</span>
+                            ) : (
+                              <Copy className="w-3.5 h-3.5 text-white" />
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-xs text-white/70 text-center">
+                          🔐 Access Code
+                          {copied && <span className="ml-1 text-green-200">(Copied!)</span>}
+                          {copyError && <span className="ml-1 text-red-200">(Click to select)</span>}
+                        </p>
                       </div>
                     ) : (
                       <p className="text-white" style={{ fontSize: "16px", lineHeight: "1.5" }}>{msg.text}</p>
@@ -544,12 +673,20 @@ export default function LineChatRevelacao() {
             backgroundColor: "rgba(0, 0, 0, 0.85)",
             backdropFilter: "blur(8px)",
           }}
+          onClick={(e) => {
+            // Prevent closing popup by clicking outside
+            e.stopPropagation()
+          }}
         >
           <div
             className="w-full max-w-sm bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-300"
             style={{
               border: "1px solid rgba(0, 195, 0, 0.3)",
               boxShadow: "0 0 40px rgba(0, 195, 0, 0.2), 0 20px 60px rgba(0, 0, 0, 0.5)",
+            }}
+            onClick={(e) => {
+              // Prevent closing popup by clicking on the popup itself
+              e.stopPropagation()
             }}
           >
             {/* Header */}
@@ -567,23 +704,34 @@ export default function LineChatRevelacao() {
             {/* Input Area */}
             <div className="px-6 pb-8">
               <div className="mb-6">
-                <input
-                  type="text"
-                  value={unlockCode}
-                  onChange={(e) => setUnlockCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  onKeyPress={(e) => e.key === "Enter" && handleUnlockSubmit()}
-                  placeholder="• • • •"
-                  className="w-full px-6 py-4 text-center text-2xl font-mono tracking-widest rounded-2xl bg-gray-800/50 border-2 text-white placeholder-gray-600 focus:outline-none focus:border-[#00C300] transition-all duration-300"
-                  style={{
-                    borderColor: showError ? "#ef4444" : "rgba(107, 114, 128, 0.3)",
-                    boxShadow: showError ? "0 0 20px rgba(239, 68, 68, 0.3)" : "0 4px 12px rgba(0, 0, 0, 0.3)",
-                    fontSize: "24px",
-                    lineHeight: "1.5",
-                    minHeight: "40px",
-                  }}
-                  maxLength={4}
-                  autoFocus
-                />
+                <div className="relative">
+                  <input
+                    ref={codeInputRef}
+                    type="text"
+                    value={unlockCode}
+                    onChange={(e) => setUnlockCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    onKeyPress={(e) => e.key === "Enter" && handleUnlockSubmit()}
+                    onPaste={(e) => {
+                      e.preventDefault()
+                      const pastedText = e.clipboardData.getData("text")
+                      const cleaned = pastedText.replace(/\D/g, "").slice(0, 4)
+                      if (cleaned.length === 4) {
+                        setUnlockCode(cleaned)
+                        setShowError(false)
+                        setPasteError(false)
+                      }
+                    }}
+                    placeholder="• • • •"
+                    className="w-full px-6 py-4 text-center text-2xl font-mono tracking-widest rounded-2xl bg-gray-800/50 border-2 text-white placeholder-gray-600 focus:outline-none focus:border-[#00C300] transition-all duration-300"
+                    style={{
+                      borderColor: showError ? "#ef4444" : "rgba(107, 114, 128, 0.3)",
+                      boxShadow: showError ? "0 0 20px rgba(239, 68, 68, 0.3)" : "0 4px 12px rgba(0, 0, 0, 0.3)",
+                      fontSize: "24px",
+                      lineHeight: "1.5",
+                      minHeight: "40px",
+                    }}
+                  />
+                </div>
                 {showError && (
                   <p className="text-red-400 text-center mt-3 animate-in slide-in-from-top duration-300" style={{ fontSize: "16px", lineHeight: "1.5" }}>
                     ❌ Invalid code. Try again.
@@ -607,38 +755,29 @@ export default function LineChatRevelacao() {
 
               <button
                 onClick={() => {
+                  // Allow user to close popup to copy the code
                   setShowUnlockPopup(false)
                   setUnlockCode("")
                   setShowError(false)
-                  setPendingAudioId(null)
-                  setPendingAudioSrc(null)
+                  setPasteError(false)
 
-                  if (audioRef.current) {
-                    audioRef.current.pause()
-                    audioRef.current.src = ""
-                    audioRef.current = null
-                  }
+                  // Don't reset processing lock - conversation stays blocked
+                  // User needs to unlock to continue
+                  isProcessingRef.current = true
 
-                  // Reset processing lock
-                  isProcessingRef.current = false
-
-                  // Only continue if we were waiting for audio in the automatic flow
-                  if (waitingForAudio) {
-                    setWaitingForAudio(false)
-                    setTimeout(continueMessages, 100)
-                  } else {
-                    setWaitingForAudio(false)
-                  }
+                  // Keep pending audio state so it can reopen when audio is clicked again
+                  // State is already preserved in pendingAudioId and pendingAudioSrc
                 }}
                 className="w-full mt-3 py-3 rounded-2xl font-medium text-gray-400 transition-all duration-300 hover:text-white hover:bg-gray-800/30"
                 style={{ fontSize: "16px", lineHeight: "1.5", minHeight: "40px" }}
               >
-                Cancel
+                Cancel (to copy code)
               </button>
             </div>
           </div>
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   )
 }

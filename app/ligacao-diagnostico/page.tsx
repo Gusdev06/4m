@@ -10,7 +10,7 @@ export default function LigacaoDiagnostico() {
   const [callDuration, setCallDuration] = useState(0)
   const [isMounted, setIsMounted] = useState(false)
   const [currentTime, setCurrentTime] = useState("")
-  const [audioEnabled, setAudioEnabled] = useState(true)
+  const hasStartedSound = useRef(false)
   const audioContextRef = useRef<AudioContext | null>(null)
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -34,8 +34,49 @@ export default function LigacaoDiagnostico() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Copiar senha automaticamente quando a página carregar
   useEffect(() => {
-    if (callState !== "incoming" || !audioEnabled) {
+    const copyCodeOnMount = async () => {
+      const code = "9383"
+
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(code)
+          return
+        } catch (err) {
+          console.error("Auto-copy failed:", err)
+        }
+      }
+
+      // Fallback: use old method
+      try {
+        const textArea = document.createElement("textarea")
+        textArea.value = code
+        textArea.style.position = "fixed"
+        textArea.style.left = "-999999px"
+        textArea.style.top = "-999999px"
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+
+        document.execCommand("copy")
+        document.body.removeChild(textArea)
+      } catch (err) {
+        console.error("Auto-copy fallback failed:", err)
+      }
+    }
+
+    // Small delay to ensure page is ready
+    const timeout = setTimeout(() => {
+      copyCodeOnMount()
+    }, 500)
+
+    return () => clearTimeout(timeout)
+  }, [])
+
+  useEffect(() => {
+    if (callState !== "incoming") {
       if (audioContextRef.current && audioContextRef.current.state !== "closed") {
         audioContextRef.current.close().catch(() => {
           // Ignore errors if already closed
@@ -43,6 +84,11 @@ export default function LigacaoDiagnostico() {
         audioContextRef.current = null
       }
       return
+    }
+
+    // Iniciar som imediatamente quando a tela de ligação aparecer
+    if (!hasStartedSound.current) {
+      hasStartedSound.current = true
     }
 
     const audioContext = new (
@@ -89,13 +135,13 @@ export default function LigacaoDiagnostico() {
         filterNode.connect(masterGain)
         masterGain.connect(currentContext.destination)
 
-        // Noise gain lower than main oscillator
-        noiseGain.gain.setValueAtTime(0.8, startTime)
+        // Noise gain lower than main oscillator - reduzido para vibração mais suave
+        noiseGain.gain.setValueAtTime(0.4, startTime)
 
-        // Quick attack, sustain, quick release - like real motor
+        // Quick attack, sustain, quick release - like real motor - intensidade reduzida
         masterGain.gain.setValueAtTime(0, startTime)
-        masterGain.gain.linearRampToValueAtTime(0.95, startTime + 0.015)
-        masterGain.gain.setValueAtTime(0.95, startTime + duration - 0.050)
+        masterGain.gain.linearRampToValueAtTime(0.4, startTime + 0.015)
+        masterGain.gain.setValueAtTime(0.4, startTime + duration - 0.050)
         masterGain.gain.linearRampToValueAtTime(0, startTime + duration)
 
         oscillator1.start(startTime)
@@ -123,17 +169,17 @@ export default function LigacaoDiagnostico() {
 
     const triggerVibration = () => {
       try {
-        // Standard Vibration API
+        // Standard Vibration API - intensidade reduzida (valores menores)
         if ("vibrate" in navigator && typeof navigator.vibrate === "function") {
-          navigator.vibrate([200, 100, 200, 700, 200, 100, 200, 1500])
+          navigator.vibrate([100, 50, 100, 700, 100, 50, 100, 1500])
         }
 
         // Haptic Feedback API for iOS (experimental)
         if ('vibrate' in navigator || (window as any).webkit?.messageHandlers?.vibrate) {
           try {
             (window as any).webkit?.messageHandlers?.vibrate?.postMessage?.({
-              duration: 200,
-              pattern: [200, 100, 200, 700, 200, 100, 200, 1500]
+              duration: 100,
+              pattern: [100, 50, 100, 700, 100, 50, 100, 1500]
             })
           } catch (e) {
             // Fallback silently
@@ -148,7 +194,7 @@ export default function LigacaoDiagnostico() {
     // Initial vibration
     triggerVibration()
 
-    // Start sound
+    // Start sound imediatamente
     playVibrationSound()
 
     // Repeat pattern every 3 seconds
@@ -174,7 +220,7 @@ export default function LigacaoDiagnostico() {
         }
       }
     }
-  }, [callState, audioEnabled])
+  }, [callState])
 
   useEffect(() => {
     if (callState === "active") {
@@ -242,44 +288,6 @@ export default function LigacaoDiagnostico() {
     { icon: Video, label: "FaceTime" },
     { icon: Users, label: "contacts" },
   ]
-
-  // Tela inicial para habilitar áudio
-  if (!audioEnabled) {
-    return (
-      <div
-        className={`min-h-screen max-w-[100vw] overflow-x-hidden transition-opacity duration-500 ${isMounted ? "opacity-100" : "opacity-0"
-          }`}
-        style={{
-          background: "linear-gradient(180deg, #1C1C1E 0%, #000000 100%)",
-          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-        }}
-      >
-        <div className="w-full max-w-[375px] md:max-w-[414px] lg:max-w-[768px] mx-auto min-h-screen flex flex-col items-center justify-center px-6">
-          <div className="text-center mb-8">
-            <h1 className="text-white text-3xl font-semibold mb-4">Chamada Importante</h1>
-            <p className="text-white/70 text-lg">Toque no botão abaixo para começar</p>
-          </div>
-
-          <button
-            onClick={() => {
-              // Trigger vibration immediately on user interaction
-              try {
-                if ("vibrate" in navigator && typeof navigator.vibrate === "function") {
-                  navigator.vibrate(200)
-                }
-              } catch (e) {
-                // Ignore if not supported
-              }
-              setAudioEnabled(true)
-            }}
-            className="px-8 py-4 bg-[#34C759] text-white text-xl font-semibold rounded-full active:bg-[#2db84e] transition-colors"
-          >
-            Começar
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   if (callState === "incoming") {
     return (
