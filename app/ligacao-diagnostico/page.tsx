@@ -77,7 +77,7 @@ export default function LigacaoDiagnostico() {
   useEffect(() => {
     // Só executa se a chamada estiver no estado "incoming" (recebida)
     if (callState === "incoming") {
-      const audio = new Audio("/Som de Celular Vibrando - Efeitos Sonoros HD.mp3");
+      const audio = new Audio("/SomdeCelularVibrando.mp3");
       vibrationAudioRef.current = audio;
       audio.loop = true; // Garante que ele não repita infinitamente
 
