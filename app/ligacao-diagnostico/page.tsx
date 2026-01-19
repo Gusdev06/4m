@@ -33,51 +33,10 @@ export default function LigacaoDiagnostico() {
     return () => clearTimeout(timer)
   }, [])
 
-  // Copiar senha automaticamente quando a página carregar
-  useEffect(() => {
-    const copyCodeOnMount = async () => {
-      const code = "9383"
-
-      // Try modern clipboard API first
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        try {
-          await navigator.clipboard.writeText(code)
-          return
-        } catch (err) {
-          console.error("Auto-copy failed:", err)
-        }
-      }
-
-      // Fallback: use old method
-      try {
-        const textArea = document.createElement("textarea")
-        textArea.value = code
-        textArea.style.position = "fixed"
-        textArea.style.left = "-999999px"
-        textArea.style.top = "-999999px"
-        document.body.appendChild(textArea)
-        textArea.focus()
-        textArea.select()
-
-        document.execCommand("copy")
-        document.body.removeChild(textArea)
-      } catch (err) {
-        console.error("Auto-copy fallback failed:", err)
-      }
-    }
-
-    // Small delay to ensure page is ready
-    const timeout = setTimeout(() => {
-      copyCodeOnMount()
-    }, 500)
-
-    return () => clearTimeout(timeout)
-  }, [])
-
   useEffect(() => {
     // Só executa se a chamada estiver no estado "incoming" (recebida)
     if (callState === "incoming") {
-      const audio = new Audio("/SomdeCelularVibrando.mp3");
+      const audio = new Audio("/SomdeCelularVibrando.mp4");
       vibrationAudioRef.current = audio;
       audio.loop = true; // Garante que ele não repita infinitamente
 
