@@ -10,8 +10,7 @@ export default function LigacaoDiagnostico() {
   const [callDuration, setCallDuration] = useState(0)
   const [isMounted, setIsMounted] = useState(false)
   const [currentTime, setCurrentTime] = useState("")
-  const hasStartedSound = useRef(false)
-  const audioContextRef = useRef<AudioContext | null>(null)
+  const vibrationAudioRef = useRef<HTMLAudioElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
@@ -76,151 +75,23 @@ export default function LigacaoDiagnostico() {
   }, [])
 
   useEffect(() => {
-    if (callState !== "incoming") {
-      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-        audioContextRef.current.close().catch(() => {
-          // Ignore errors if already closed
-        })
-        audioContextRef.current = null
-      }
-      return
+    // Só executa se a chamada estiver no estado "incoming" (recebida)
+    if (callState === "incoming") {
+      const audio = new Audio("/Som de Celular Vibrando - Efeitos Sonoros HD.mp3");
+      vibrationAudioRef.current = audio;
+      audio.loop = true; // Garante que ele não repita infinitamente
+
+      audio.play().catch((err) => console.log("Erro ao tocar áudio:", err));
+
     }
-
-    // Iniciar som imediatamente quando a tela de ligação aparecer
-    if (!hasStartedSound.current) {
-      hasStartedSound.current = true
-    }
-
-    const audioContext = new (
-      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    )()
-    audioContextRef.current = audioContext
-
-    // Resume AudioContext if suspended (browser autoplay policy)
-    if (audioContext.state === "suspended") {
-      audioContext.resume()
-    }
-
-    let isPlaying = true
-
-    const playVibrationSound = async () => {
-      if (!isPlaying || !audioContextRef.current || audioContextRef.current.state === "closed") return
-
-      const currentContext = audioContextRef.current
-
-      // iOS vibration uses two quick pulses then silence
-      const createBuzz = (startTime: number, duration: number) => {
-        const oscillator1 = currentContext.createOscillator()
-        const oscillator2 = currentContext.createOscillator()
-        const noiseGain = currentContext.createGain()
-        const filterNode = currentContext.createBiquadFilter()
-        const masterGain = currentContext.createGain()
-
-        // Low-pass filter for muffled motor sound
-        filterNode.type = "lowpass"
-        filterNode.frequency.setValueAtTime(180, startTime)
-        filterNode.Q.setValueAtTime(1, startTime)
-
-        // Primary motor frequency - iPhone haptic motor runs around 150-200Hz
-        oscillator1.type = "sine"
-        oscillator1.frequency.setValueAtTime(155, startTime)
-
-        // Secondary harmonic for texture
-        oscillator2.type = "triangle"
-        oscillator2.frequency.setValueAtTime(205, startTime)
-
-        oscillator1.connect(filterNode)
-        oscillator2.connect(noiseGain)
-        noiseGain.connect(filterNode)
-        filterNode.connect(masterGain)
-        masterGain.connect(currentContext.destination)
-
-        // Noise gain lower than main oscillator - reduzido para vibração mais suave
-        noiseGain.gain.setValueAtTime(0.4, startTime)
-
-        // Quick attack, sustain, quick release - like real motor - intensidade reduzida
-        masterGain.gain.setValueAtTime(0, startTime)
-        masterGain.gain.linearRampToValueAtTime(0.4, startTime + 0.015)
-        masterGain.gain.setValueAtTime(0.4, startTime + duration - 0.050)
-        masterGain.gain.linearRampToValueAtTime(0, startTime + duration)
-
-        oscillator1.start(startTime)
-        oscillator2.start(startTime)
-        oscillator1.stop(startTime + duration)
-        oscillator2.stop(startTime + duration)
-
-        return { oscillator1, oscillator2, filterNode, masterGain, noiseGain }
-      }
-
-      const t = currentContext.currentTime
-
-      // iOS pattern: buzz-buzz (pause) buzz-buzz (long pause)
-      // First double buzz
-      createBuzz(t, 0.2)
-      createBuzz(t + 0.3, 0.2)
-
-      // Second double buzz after short pause
-      createBuzz(t + 1.2, 0.2)
-      createBuzz(t + 1.5, 0.2)
-
-      // Trigger vibration with sound for better compatibility
-      triggerVibration()
-    }
-
-    const triggerVibration = () => {
-      try {
-        // Standard Vibration API - intensidade reduzida (valores menores)
-        if ("vibrate" in navigator && typeof navigator.vibrate === "function") {
-          navigator.vibrate([100, 50, 100, 700, 100, 50, 100, 1500])
-        }
-
-        // Haptic Feedback API for iOS (experimental)
-        if ('vibrate' in navigator || (window as any).webkit?.messageHandlers?.vibrate) {
-          try {
-            (window as any).webkit?.messageHandlers?.vibrate?.postMessage?.({
-              duration: 100,
-              pattern: [100, 50, 100, 700, 100, 50, 100, 1500]
-            })
-          } catch (e) {
-            // Fallback silently
-          }
-        }
-      } catch (error) {
-        // Vibration not supported
-        console.log('Vibration not supported')
-      }
-    }
-
-    // Initial vibration
-    triggerVibration()
-
-    // Start sound imediatamente
-    playVibrationSound()
-
-    // Repeat pattern every 3 seconds
-    const interval = setInterval(() => {
-      playVibrationSound()
-      triggerVibration()
-    }, 3000)
 
     return () => {
-      isPlaying = false
-      clearInterval(interval)
-      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-        audioContextRef.current.close().catch(() => {
-          // Ignore errors if already closed
-        })
-        audioContextRef.current = null
+      if (vibrationAudioRef.current) {
+        vibrationAudioRef.current.pause();
+        vibrationAudioRef.current = null;
       }
-      if ("vibrate" in navigator) {
-        try {
-          navigator.vibrate(0)
-        } catch (e) {
-          // Ignore
-        }
-      }
-    }
-  }, [callState])
+    };
+  }, [callState]);
 
   useEffect(() => {
     if (callState === "active") {
