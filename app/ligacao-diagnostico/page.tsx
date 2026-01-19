@@ -41,7 +41,6 @@ export default function LigacaoDiagnostico() {
       audio.loop = true; // Garante que ele não repita infinitamente
 
       audio.play().catch((err) => console.log("Erro ao tocar áudio:", err));
-
     }
 
     return () => {
@@ -132,7 +131,7 @@ export default function LigacaoDiagnostico() {
         <div
           className="w-full max-w-[375px] md:max-w-[414px] lg:max-w-[768px] mx-auto min-h-screen flex flex-col"
           style={{
-            animation: "vibrate-frenetic 0.08s linear infinite",
+            animation: "vibrate-frenetic 01.0s linear infinite",
           }}
         >
           <div className="h-11 flex items-center justify-between px-6 text-white text-sm font-medium">
